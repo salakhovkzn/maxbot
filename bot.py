@@ -10,7 +10,6 @@ OAUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 CHAT_URL  = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
 
 MIN_LEN = 50
-GROUP_CMD = "встреча"
 
 # Основной промт (стандартная встреча)
 PROMPT_MAIN = """Ты — бизнес-аналитик DENKIRS (светотехника, divine-light.ru).
@@ -40,9 +39,10 @@ PROMPT_ADD = """Ты — бизнес-аналитик DENKIRS.
 Дополнение:
 """
 
-HELP = ("Отправь расшифровку встречи текстом.\n"
-        "В группе начни со слова «встреча».\n"
-        "Если это дополнение к уже обработанной встрече — начни текст со слова «дополнение».")
+HELP = ("Как пользоваться ботом:\n"
+        "• В группе: начни сообщение со слова «встреча» или «дополнение».\n"
+        "• В личке: просто отправь текст расшифровки.\n"
+        "Пример: встреча [текст расшифровки]")
 
 def giga_token():
     r = requests.post(OAUTH_URL,
@@ -57,9 +57,17 @@ def giga_token():
 def process(text, token):
     low = text.lower().lstrip()
     if low.startswith("дополнение") or low.startswith("доп."):
+        # отрезаем слово-триггер
+        for prefix in ["дополнение", "доп."]:
+            if low.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
         content = PROMPT_ADD + text
         max_tok = 1500
     else:
+        # отрезаем "встреча" если есть
+        if low.startswith("встреча"):
+            text = text[len("встреча"):].strip()
         content = PROMPT_MAIN + text
         max_tok = 2500
 
@@ -114,9 +122,15 @@ def main():
 
         if is_group:
             low = text.lower()
-            if not low.startswith(GROUP_CMD):
+            # Принимаем "встреча ..." или "дополнение ..."
+            if low.startswith("встреча"):
+                text = text[len("встреча"):].strip()
+            elif low.startswith("дополнение") or low.startswith("доп."):
+                # оставляем слово "дополнение" в тексте — процесс() сам его отрежет
+                pass
+            else:
                 continue
-            text = text[len(GROUP_CMD):].strip()
+
             if not text:
                 send(chat_id, HELP)
                 continue
